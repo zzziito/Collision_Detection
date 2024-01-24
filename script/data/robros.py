@@ -4,35 +4,53 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torch.utils.data import TensorDataset
 import torch
 
-from utils import functions
+import utils.functions
  
 class Robros(Dataset):
-    def __init__(self, train=True, folder_path='/home/rtlink/robros/dataset/robros_dataset'):
+    def __init__(self, train=True, input_folder_path=None, target_folder_path=None):
 
-        files = os.listdir(folder_path)
-        class_files = {'cls': [], 'fre': []}
+        input_files = os.listdir(input_folder_path)
+        target_files = os.listdir(target_folder_path)
+        
+        class_files = {'input_cls': [], 'input_fre': [], 'target_cls': [], 'target_fre': []}
 
-        for file in files:
+        for file in input_files:
             if 'cls' in file:
-                class_files['cls'].append(file)
+                class_files['input_cls'].append(file)
             elif 'fre' in file:
-                class_files['fre'].append(file)
- 
-        fre_data = functions.load_and_combine_files(class_files['fre'], folder_path)
- 
-        fre_data['label'] = 1
+                class_files['input_fre'].append(file)
 
-        combined_data = pd.concat([fre_data], ignore_index=False, axis=1)
+        for file in target_files:
+            if 'cls' in file:
+                class_files['target_cls'].append(file)
+            elif 'fre' in file:
+                class_files['target_fre'].append(file)
+ 
+        input_data = functions.load_and_combine_files(class_files['input_fre'], input_folder_path)
+        target_data = functions.load_and_combine_files(class_files['target_fre'], target_folder_path)
+        
+        input_data['label'] = target_data['label']
+
+        combined_data = pd.concat([input_data], ignore_index=False, axis=1)
         combined_data = combined_data.drop(combined_data.index[0])
+        
+        target_combined_data = pd.concat([target_data], ignore_index=False, axis=1)
+        target_combined_data = target_combined_data.drop(target_combined_data.index[0])
+
  
         signals, labels, joints = functions.prepare_dataset(combined_data)
-        self.dataset = TensorDataset(signals, labels, joints)
- 
-        total_size = len(self.dataset)
+        target_signals, target_labels, target_joints = functions.prepare_dataset(target_data)
+
+        self.input_dataset = TensorDataset(signals, labels, joints)
+        self.target_dataset = TensorDataset(target_signals, target_labels, target_joints)
+
+        total_size = len(self.input_dataset)
         train_size = int(total_size * 0.7)  # 70% 훈련 데이터
         test_size = total_size - train_size
  
-        self.train_dataset, self.test_dataset = random_split(self.dataset, [train_size, test_size])
+        self.train_dataset, self.test_dataset = random_split(self.input_dataset, [train_size, test_size])
+        self.target_train_dataset, self.target_test_dataset = random_split(self.target_dataset, [train_size, test_size])
+
         self.train = train
  
     def __len__(self):
@@ -52,23 +70,19 @@ if __name__ == '__main__':
 
     trainset = Robros(train=True)
     train_loader = DataLoader(trainset, batch_size=64, shuffle=True)
-    
-    testset = Robros(train=False)
-    test_loader = DataLoader(testset, batch_size=64, shuffle=False)
-    
-
     for signals, labels, joints in train_loader:
         print("Train Dataset - First Batch")
         print("Signals:", signals)
         print("Labels:", labels)
         print("Joints:", joints)
-        break  
-    
+        break
 
-    for signals, labels, joints in test_loader:
-        print("\nTest Dataset - First Batch")
+    # 타겟 데이터셋 로드 및 확인
+    target_trainset = Robros(train=True, input_folder_path='/path/to/target/folder', target_folder_path='/path/to/target/folder')
+    target_train_loader = DataLoader(target_trainset, batch_size=64, shuffle=True)
+    for signals, labels, joints in target_train_loader:
+        print("\nTarget Train Dataset - First Batch")
         print("Signals:", signals)
         print("Labels:", labels)
         print("Joints:", joints)
-        break  
-    
+        break

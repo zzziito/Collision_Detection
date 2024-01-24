@@ -1,1 +1,1 @@
-from utils import functions
+import utils.functions
