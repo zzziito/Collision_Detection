@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from typing import Union, Dict
 
-from utils import losses
+from utils import losses, compute
 
 def clone_state_dict(thing: Union[nn.Module, Dict[str, torch.Tensor]]):
     if isinstance(thing, nn.Module):

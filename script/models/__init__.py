@@ -1,11 +1,14 @@
 from models.transformer import Transformer
 from models.rnn import RNN
+from models.cnn import CNN
 
-def get_model(name: str, out_dim: int, **kwargs):
+def get_model(name: str, **kwargs):
     name = name.lower()
     if name == 'transformer':
-        return Transformer(num_classes=out_dim, **kwargs)
+        return Transformer(**kwargs)
     elif name == 'rnn':
-        return RNN(num_classes=out_dim, **kwargs)
+        return RNN(**kwargs)
+    elif name == 'cnn':
+        return CNN(**kwargs)
     else:
         raise NotImplementedError

@@ -90,7 +90,8 @@ def seed_worker(worker_id):
 g = torch.Generator()
 g.manual_seed(0)
 
-model = get_model(CFG.model).cuda()
+model_kwargs = dict(num_classes=1000, input_channels=1000, sequence_length=1000)
+model = get_model(CFG.model, **model_kwargs).cuda()
 optimizer = torch.optim.Adam(lr=CFG.learning_rate)
 
 criterion_cls = nn.KLDivLoss(reduction="batchmean")
@@ -111,9 +112,9 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
             for batch_idx, (inputs, _) in enumerate(train_bar):
                 
                 inputs = torch.stack(inputs).cuda()
-                cls_out = model(inputs) # 여기 마저 구현해야 함. 
+                output = model(inputs) 
                 
-                batch_loss = None # loss function 구현해야 함. 
+                batch_loss = ce_loss()
                 
                 optimizer.zero_grad()
                 batch_loss.backward()

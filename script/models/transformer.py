@@ -9,7 +9,7 @@ class Transformer(nn.Module):
  
         self.d_model = d_model
 
-        #model 차원으로 입력 데이터 차원 변경
+        # Input Embedding
         self.embed_src = nn.Linear(input_dim, d_model)
         self.embed_tgt = nn.Linear(input_dim, d_model)
 

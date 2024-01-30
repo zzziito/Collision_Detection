@@ -50,6 +50,8 @@ def load_and_combine_files(file_list, folder_path):
         combined_df = pd.concat([combined_df, df], ignore_index=True)
     return combined_df
 
+    
+
 def prepare_dataset(df):
     df['label'] = df['label'].astype(int)
     df['joint_number'] = df['joint_number'].astype(int)
