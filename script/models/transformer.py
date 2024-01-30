@@ -23,7 +23,7 @@ class Transformer(nn.Module):
                                           dim_feedforward=dim_feedforward)
         
         # 출력 데이터를 생성하기 위한 최종 선형 레이어
-        self.out = nn.Linear(d_model, output_dim)
+        self.    = nn.Linear(d_model, output_dim)
  
     def forward(self, src, tgt):
         # 소스와 타겟 데이터에 대해 임베딩 및 스케일 조정

@@ -11,10 +11,9 @@ import matplotlib.pyplot as plt
 #Argument Parsing
 parser = ArgumentParser("JTE")
 parser.add_argument('--seed', type=int, default=None)
-parser.add_argument('--model', type=str, default='transformer')
+parser.add_argument('--model', type=str, default='rnn')
 parser.add_argument('--epoch', type=int, default=100)
 parser.add_argument('--learning-rate', '-lr',type=float, default=1.0E-4)
-parser.add_argument('--batch-size','-bs', type=int, default=128)
 parser.add_argument('--batch-size','-bs', type=int, default=128)
 parser.add_argument('--tag', type=str, required=True)
 
@@ -31,7 +30,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.backends import cudnn
 
 from data import Robros
-from models import Transformer, get_model
+from models import get_model
 
 SEED = (torch.initial_seed() if CFG.seed is None else CFG.seed) % 2**32
 random.seed(SEED)
@@ -41,6 +40,10 @@ torch.cuda.manual_seed_all(SEED)
 
 cudnn.deterministic = CFG.seed is not None
 cudnn.benchmark = not cudnn.deterministic
+
+# CUDA setup
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # DataLoader Setup
 
@@ -90,7 +93,7 @@ def seed_worker(worker_id):
 g = torch.Generator()
 g.manual_seed(0)
 
-model_kwargs = dict(num_classes=1000, input_channels=1000, sequence_length=1000)
+model_kwargs = dict(input_dim=1000, hidden_dim=1000, output_dim=1000, num_joints=7, embed_dim=1000, num_layers=10)
 model = get_model(CFG.model, **model_kwargs).cuda()
 optimizer = torch.optim.Adam(lr=CFG.learning_rate)
 
@@ -103,26 +106,30 @@ num_train_batch = len(train_loader) - 1
 num_valid_batch = len(valid_loader) - 1
 
 with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynamic_ncols=True) as epoch_bar:
+    lr_list, loss_list = []
+
     for epoch in epoch_bar:
         
         # Train Code
         with tqdm(train_loader, desc='TRAIN', positions=2, leave=False, dynamic_ncols=True) as train_bar:
             train_total = 0
             
-            for batch_idx, (inputs, _) in enumerate(train_bar):
+            for batch_idx, (inputs, joints, target_inputs, target_joints) in enumerate(train_bar):
                 
-                inputs = torch.stack(inputs).cuda()
-                output = model(inputs) 
-                
-                batch_loss = ce_loss()
-                
+                inputs, joints = inputs.to(device), joints.to(device)
+                target_inputs = target_inputs.to(device)
+
                 optimizer.zero_grad()
-                batch_loss.backward()
+
+                outputs = model(inputs, joints)
+                loss = F.kl_div(F.log_softmax(outputs, dim=1), F.softmax(target_inputs, dim=1), reduction='batchmean')
+
+                loss.backward()
                 
                 optimizer.step()
                 
                 with torch.no_grad():
-                    train_total += batch_loss
+                    train_total += loss
                     
             train_mean_loss = train_total / num_train_batch
             
@@ -131,9 +138,43 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
         # Validation Code
         with tqdm(valid_loader, desc='VALID', positions=2, leave=False, dynamic_ncols=True) as valid_bar, torch.no_grad:
             valid_loss, valid_total, valid_mean_loss = 0
-            
-            for inputs, _ in valid_bar:
-                inputs = torch.stack(inputs).cuda()
+
+            for batch_idx, (inputs, joints, target_inputs, target_joints) in enumerate(valid_bar):
+
+                inputs, joints = inputs.to(device), joints.to(device)
+                target_inputs = target_inputs.to(device)
+
+                outputs = model(inputs, joints)
+                loss = F.kl_div(F.log_softmax(outputs, dim=1), F.softmax(target_inputs, dim=1), reduction='batchmean')
+
+                valid_total += loss.item()
+
+            valid_mean_loss = valid_total / len(valid_loader)
+
+            writer.add_scalar('valid/loss', valid_mean_loss, global_step=epoch)
+
+        lr_list.append(optimizer.param_groups[0]['lr'])
+        loss_list.append(train_mean_loss)
+        
+ 
+        torch.save({
+            'cfg': CFG,
+            'last_epoch': epoch,
+            'lr_list': lr_list,
+            'loss_list': loss_list,
+            'saved_epoch': CFG.epoch,
+            'saved_learning_rate': CFG.learning_rate,
+            'saved_batch_size': CFG.batch_size,
+        }, CKPT_FILENAME)
+ 
+        writer.add_scalar('epoch/epoch', epoch, global_step=epoch)
+        writer.add_scalar('epoch/learning_rate', lr_list[-1], global_step=epoch)
+
+
+
+
+
+
                 
                 
                 

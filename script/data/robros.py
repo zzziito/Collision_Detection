@@ -6,7 +6,7 @@ import torch
  
 class Robros(Dataset):
 
-    def __init__(self, train=True, input_folder_path='', target_folder_path=''):
+    def __init__(self, train=True, input_folder_path="/home/rtlink/robros/dataset/robros_dataset/input_data", target_folder_path="/home/rtlink/robros/dataset/robros_dataset/target_data"):
 
         self.train = train
         self.input_files = sorted([os.path.join(input_folder_path, f) for f in os.listdir(input_folder_path) if f.startswith('fre_joint_')])
