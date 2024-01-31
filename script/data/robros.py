@@ -1,89 +1,77 @@
-import os
+import torch
+from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
-import torch
+import os
  
 class Robros(Dataset):
-
-    def __init__(self, train=True, input_folder_path="/home/rtlink/robros/dataset/robros_dataset/input_data", target_folder_path="/home/rtlink/robros/dataset/robros_dataset/target_data"):
-
+    def __init__(self, train, input_folder_path, target_folder_path, num_joints):
         self.train = train
-        self.input_files = sorted([os.path.join(input_folder_path, f) for f in os.listdir(input_folder_path) if f.startswith('fre_joint_')])
-        self.target_files = sorted([os.path.join(target_folder_path, f) for f in os.listdir(target_folder_path) if f.startswith('fre_joint_')])
+        self.num_joints = num_joints
+        self.input_folder_path = input_folder_path
+        self.target_folder_path = target_folder_path
 
-        self.max_seq_length = self._find_max_seq_length()
+        self.inputs = self.load_inputs()
 
-        self.num_joints = 7
+        self.targets = self.load_targets()
 
-        self.split_idx = int(0.7 * len(self.input_files))
-
-        if self.train:
-            self.input_files = self.input_files[:self.split_idx]
-            self.target_files = self.target_files[:self.split_idx]
-
-        else:
-            self.input_files = self.input_files[self.split_idx:]
-            self.target_files = self.target_files[self.split_idx:]
+        self.max_seq_len = max([max([df.shape[1] for df in joint_data]) for joint_data in self.inputs.values()])
  
-    def _find_max_seq_length(self):
-
-        max_length = 0
-        for file_path in self.input_files + self.target_files:
-            df = pd.read_csv(file_path)
-            if df.shape[1] > max_length:
-                max_length = df.shape[1]
-
-        return max_length
+    def load_csvs_from_folder(self, folder_path):
+        all_csvs = sorted(os.listdir(folder_path))
+        data = [pd.read_csv(os.path.join(folder_path, csv_file), header=None) for csv_file in all_csvs]
+        return data
+ 
+    def load_inputs(self):
+        inputs = {}
+        for data_type in ['joint_position', 'joint_velocity', 'joint_acceleration']:
+            folder_path = os.path.join(self.input_folder_path, data_type)
+            inputs[data_type] = self.load_csvs_from_folder(folder_path)
+        return inputs
+ 
+    def load_targets(self):
+        return self.load_csvs_from_folder(self.target_folder_path)
+    
+    def pad_sequence(self, sequence, max_len):
+        padded = np.zeros(max_len)
+        padded[:len(sequence)] = sequence
+        return padded
  
     def __len__(self):
-
-        return len(self.input_files)
-
-    def __getitem__(self, idx):
-
-        input_data = pd.read_csv(self.input_files[idx]).fillna(0).values.flatten()
-        target_data = pd.read_csv(self.target_files[idx]).fillna(0).values.flatten()
-
-        input_pad_length = max(0, self.max_seq_length - len(input_data))
-        target_pad_length = max(0, self.max_seq_length - len(target_data))
-
-        input_padded = np.pad(input_data, (0, input_pad_length), mode='constant', constant_values=0)
-        target_padded = np.pad(target_data, (0, target_pad_length), mode='constant', constant_values=0)
-
-        inputs = torch.tensor(input_padded, dtype=torch.float)
-        target_inputs = torch.tensor(target_padded, dtype=torch.float)
-
-        joint_index = int(self.input_files[idx].split('_')[-1].split('.')[0])
-        joints_one_hot = np.zeros((self.num_joints, ))
-        joints_one_hot[joint_index] = 1
-        joints_one_hot = torch.tensor(joints_one_hot, dtype=torch.float)
-
-        target_joint_index = int(self.target_files[idx].split('_')[-1].split('.')[0])
-        target_joints_one_hot = np.zeros((self.num_joints, ))
-        target_joints_one_hot[target_joint_index] = 1
-        target_joints_one_hot = torch.tensor(target_joints_one_hot, dtype=torch.float)
-
-        return inputs, joints_one_hot, target_inputs, target_joints_one_hot
+        return len(self.targets[0]) 
  
+    def __getitem__(self, idx):
+        inputs = []
+        for data_type in ['joint_position', 'joint_velocity', 'joint_acceleration']:
+            for joint_idx in range(self.num_joints):
+                data = self.inputs[data_type][joint_idx]
+                seq = data.iloc[idx].dropna().values
+                padded_seq = self.pad_sequence(seq, self.max_seq_len)
+                inputs.append(padded_seq)
+        inputs = np.array(inputs).reshape(self.num_joints * 3, self.max_seq_len)
+        input_size = inputs.shape
 
-if __name__ == '__main__':
+        targets = []
+        for joint_idx in range(self.num_joints):
+            data = self.targets[joint_idx]
+            seq = data.iloc[idx].dropna().values
+            padded_seq = self.pad_sequence(seq, self.max_seq_len)
+            targets.append(padded_seq)
+        targets = np.array(targets).reshape(self.num_joints, self.max_seq_len)
 
-    input_folder_path = "/home/rtlink/robros/dataset/robros_dataset/input_data"
-    target_folder_path = "/home/rtlink/robros/dataset/robros_dataset/target_data"
+        return torch.tensor(inputs, dtype=torch.float32), torch.tensor(targets, dtype=torch.float32)
+    
 
-    train_dataset = Robros(train=True, input_folder_path=input_folder_path, target_folder_path=target_folder_path)
-    train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+if __name__=="__main__":
+    input_folder_path = '/home/rtlink/robros/dataset/robros_dataset/input_data'
+    target_folder_path = '/home/rtlink/robros/dataset/robros_dataset/target_data'
+    num_joints = 7 
 
-    test_dataset = Robros(train=False, input_folder_path=input_folder_path, target_folder_path=target_folder_path)
-    test_dataloader = DataLoader(test_dataset, batch_size=4, shuffle=True)
+    train_dataset = Robros(train=True, input_folder_path=input_folder_path, target_folder_path=target_folder_path, num_joints=num_joints)
+    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+    
 
-
-    for inputs, joints_one_hot, target_inputs, target_joints_one_hot in train_dataloader:
-
-        print("Inputs:", inputs)
-        print("Joints:", joints_one_hot)
-        print("Target Inputs:", target_inputs)
-        print("Target Joints:", target_joints_one_hot)
-
-        break  # 첫 번째 배치만 출력
+    for inputs, targets in train_loader:
+        print("Input Tensor Shape:", inputs.shape)   # [batch_size, 3*num_joints, max_seq_len]
+        print("Target Tensor Shape:", targets.shape) # [batch_size, num_joints, max_seq_len]
+        break  
