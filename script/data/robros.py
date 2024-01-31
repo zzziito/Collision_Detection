@@ -5,7 +5,7 @@ import numpy as np
 import os
  
 class Robros(Dataset):
-    def __init__(self, train, input_folder_path, target_folder_path, num_joints):
+    def __init__(self, train, input_folder_path="/home/rtlink/robros/dataset/robros_dataset/input_data", target_folder_path="/home/rtlink/robros/dataset/robros_dataset/target_data", num_joints=7):
         self.train = train
         self.num_joints = num_joints
         self.input_folder_path = input_folder_path
@@ -75,3 +75,12 @@ if __name__=="__main__":
         print("Input Tensor Shape:", inputs.shape)   # [batch_size, 3*num_joints, max_seq_len]
         print("Target Tensor Shape:", targets.shape) # [batch_size, num_joints, max_seq_len]
         break  
+ 
+
+    first_batch_inputs, first_batch_targets = next(iter(train_loader))
+
+    first_data_input = first_batch_inputs[0]
+    first_data_target = first_batch_targets[0]
+
+    print("First Data Input Second Dimension Tensor:\n", first_data_input.size())
+    print("\nFirst Data Target Second Dimension Tensor:\n", first_data_target.size())

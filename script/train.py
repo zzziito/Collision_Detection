@@ -52,6 +52,7 @@ validset = Robros(train=False)
 
 loader_kwargs = dict(
     batch_size = CFG.batch_size,
+    drop_last = True
 )
 
 train_loader = DataLoader(trainset, **loader_kwargs)
@@ -62,7 +63,7 @@ len_validset = len(validset)
 
 # Logging
 
-LOG_DIR = Path('./log/temp')
+LOG_DIR = Path('./log')
 EXP_DIR = LOG_DIR.joinpath(CFG.tag)
 if EXP_DIR.exists():
     answer = None
@@ -94,9 +95,7 @@ g = torch.Generator()
 g.manual_seed(0)
 
 model_kwargs = dict(
-    input_dim=1000, 
-    hidden_dim=1000, 
-    output_dim=1000, 
+    hidden_size=128, 
     num_joints=7, 
     num_layers=10
     )
@@ -116,54 +115,63 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
     lr_list, loss_list = [], []
 
     for epoch in epoch_bar:
-        
         # Train Code
         with tqdm(train_loader, desc='TRAIN', position=2, leave=False, dynamic_ncols=True) as train_bar:
-            train_total = 0
+            train_loss, train_total, train_mean_loss = 0, 0, 0
             
-            for batch_idx, (inputs, joints, target_inputs, target_joints) in enumerate(train_bar):
+            for batch_idx, (input, target) in enumerate(train_bar):
                 
-                inputs, joints = inputs.to(device), joints.to(device)
-                target_inputs = target_inputs.to(device)
+                input, target = input.to(device), target.to(device)
 
                 optimizer.zero_grad()
 
-                outputs = model(inputs, joints)
-                loss = F.kl_div(F.log_softmax(outputs, dim=1), F.softmax(target_inputs, dim=1), reduction='batchmean')
+                output = model(input)
+
+                log_softmax_output = F.log_softmax(output, dim=-1)
+                target_dist = F.softmax(target, dim=-1)
+
+                output_shape = log_softmax_output.shape
+                target_shape = target_dist.shape
+
+                loss = F.kl_div(log_softmax_output, target_dist, reduction='batchmean')
 
                 loss.backward()
-                
                 optimizer.step()
                 
                 with torch.no_grad():
-                    train_total += loss
+                    train_loss += loss.item()*input.size(0)
+                    train_total += input.size(0)
                     
-            train_mean_loss = train_total / num_train_batch
+            train_mean_loss = train_loss / train_total
             
             writer.add_scalar('train/loss', train_mean_loss, global_step=epoch)
             
         # Validation Code
-        with tqdm(valid_loader, desc='VALID', position=2, leave=False, dynamic_ncols=True) as valid_bar, torch.no_grad:
+        with tqdm(valid_loader, desc='VALID', position=2, leave=False, dynamic_ncols=True) as valid_bar, torch.no_grad():
             valid_loss, valid_total, valid_mean_loss = 0, 0, 0
 
-            for batch_idx, (inputs, joints, target_inputs, target_joints) in enumerate(valid_bar):
+            for batch_idx, (input, target) in enumerate(valid_bar):
 
-                inputs, joints = inputs.to(device), joints.to(device)
-                target_inputs = target_inputs.to(device)
+                input, target = input.to(device), target.to(device)
 
-                outputs = model(inputs, joints)
-                loss = F.kl_div(F.log_softmax(outputs, dim=1), F.softmax(target_inputs, dim=1), reduction='batchmean')
+                outputs = model(input)
 
-                valid_total += loss.item()
+                log_softmax_output = F.log_softmax(output, dim=-1)
+                target_dist = F.softmax(target, dim=-1)
 
-            valid_mean_loss = valid_total / len(valid_loader)
 
+
+                loss = F.kl_div(log_softmax_output, target_dist, reduction='batchmean')
+
+                valid_loss += loss.item()*input.size(0)
+                valid_total += input.size(0)
+
+            valid_mean_loss = valid_loss / valid_total
             writer.add_scalar('valid/loss', valid_mean_loss, global_step=epoch)
 
         lr_list.append(optimizer.param_groups[0]['lr'])
         loss_list.append(train_mean_loss)
         
- 
         torch.save({
             'cfg': CFG,
             'last_epoch': epoch,
@@ -176,7 +184,6 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
  
         writer.add_scalar('epoch/epoch', epoch, global_step=epoch)
         writer.add_scalar('epoch/learning_rate', lr_list[-1], global_step=epoch)
-
 
 
 
