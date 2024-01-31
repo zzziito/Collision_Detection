@@ -95,23 +95,23 @@ g.manual_seed(0)
 
 model_kwargs = dict(input_dim=1000, hidden_dim=1000, output_dim=1000, num_joints=7, embed_dim=1000, num_layers=10)
 model = get_model(CFG.model, **model_kwargs).cuda()
-optimizer = torch.optim.Adam(lr=CFG.learning_rate)
+optimizer = torch.optim.Adam(model.parameters(), lr=CFG.learning_rate)
 
 criterion_cls = nn.KLDivLoss(reduction="batchmean")
 criterion_dex = nn.MSELoss()
 ce_loss = nn.CrossEntropyLoss().cuda()
 
-batch_size = CFG.batch_size()
+batch_size = CFG.batch_size
 num_train_batch = len(train_loader) - 1
 num_valid_batch = len(valid_loader) - 1
 
 with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynamic_ncols=True) as epoch_bar:
-    lr_list, loss_list = []
+    lr_list, loss_list = [], []
 
     for epoch in epoch_bar:
         
         # Train Code
-        with tqdm(train_loader, desc='TRAIN', positions=2, leave=False, dynamic_ncols=True) as train_bar:
+        with tqdm(train_loader, desc='TRAIN', position=2, leave=False, dynamic_ncols=True) as train_bar:
             train_total = 0
             
             for batch_idx, (inputs, joints, target_inputs, target_joints) in enumerate(train_bar):
@@ -136,8 +136,8 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
             writer.add_scalar('train/loss', train_mean_loss, global_step=epoch)
             
         # Validation Code
-        with tqdm(valid_loader, desc='VALID', positions=2, leave=False, dynamic_ncols=True) as valid_bar, torch.no_grad:
-            valid_loss, valid_total, valid_mean_loss = 0
+        with tqdm(valid_loader, desc='VALID', position=2, leave=False, dynamic_ncols=True) as valid_bar, torch.no_grad:
+            valid_loss, valid_total, valid_mean_loss = 0, 0, 0
 
             for batch_idx, (inputs, joints, target_inputs, target_joints) in enumerate(valid_bar):
 
