@@ -14,6 +14,8 @@ class Robros(Dataset):
 
         self.max_seq_length = self._find_max_seq_length()
 
+        self.num_joints = 7
+
         self.split_idx = int(0.7 * len(self.input_files))
 
         if self.train:
@@ -51,10 +53,18 @@ class Robros(Dataset):
 
         inputs = torch.tensor(input_padded, dtype=torch.float)
         target_inputs = torch.tensor(target_padded, dtype=torch.float)
-        joints = torch.tensor([int(self.input_files[idx].split('_')[-1].split('.')[0])], dtype=torch.float)
-        target_joints = torch.tensor([int(self.target_files[idx].split('_')[-1].split('.')[0])], dtype=torch.float)
 
-        return inputs, joints, target_inputs, target_joints
+        joint_index = int(self.input_files[idx].split('_')[-1].split('.')[0])
+        joints_one_hot = np.zeros((self.num_joints, ))
+        joints_one_hot[joint_index] = 1
+        joints_one_hot = torch.tensor(joints_one_hot, dtype=torch.float)
+
+        target_joint_index = int(self.target_files[idx].split('_')[-1].split('.')[0])
+        target_joints_one_hot = np.zeros((self.num_joints, ))
+        target_joints_one_hot[target_joint_index] = 1
+        target_joints_one_hot = torch.tensor(target_joints_one_hot, dtype=torch.float)
+
+        return inputs, joints_one_hot, target_inputs, target_joints_one_hot
  
 
 if __name__ == '__main__':
@@ -69,11 +79,11 @@ if __name__ == '__main__':
     test_dataloader = DataLoader(test_dataset, batch_size=4, shuffle=True)
 
 
-    for inputs, joints, target_inputs, target_joints in train_dataloader:
+    for inputs, joints_one_hot, target_inputs, target_joints_one_hot in train_dataloader:
 
         print("Inputs:", inputs)
-        print("Joints:", joints)
+        print("Joints:", joints_one_hot)
         print("Target Inputs:", target_inputs)
-        print("Target Joints:", target_joints)
+        print("Target Joints:", target_joints_one_hot)
 
         break  # 첫 번째 배치만 출력

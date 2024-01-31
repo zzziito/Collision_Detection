@@ -93,7 +93,14 @@ def seed_worker(worker_id):
 g = torch.Generator()
 g.manual_seed(0)
 
-model_kwargs = dict(input_dim=1000, hidden_dim=1000, output_dim=1000, num_joints=7, embed_dim=1000, num_layers=10)
+model_kwargs = dict(
+    input_dim=1000, 
+    hidden_dim=1000, 
+    output_dim=1000, 
+    num_joints=7, 
+    num_layers=10
+    )
+
 model = get_model(CFG.model, **model_kwargs).cuda()
 optimizer = torch.optim.Adam(model.parameters(), lr=CFG.learning_rate)
 
