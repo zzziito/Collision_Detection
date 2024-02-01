@@ -4,17 +4,25 @@ import pandas as pd
 import numpy as np
 import os
  
-class Robros(Dataset):
+
+"""
+Dataloader for RNN based models
+
+input tensor dimension : [batch_size, 3 * num_joints, max_seq_len]
+target tensor dimension : [batch_size, num_joints, max_seq_len]
+
+"""
+
+
+class RobrosRNN(Dataset):
     def __init__(self, train, input_folder_path="/home/rtlink/robros/dataset/robros_dataset/input_data", target_folder_path="/home/rtlink/robros/dataset/robros_dataset/target_data", num_joints=7):
         self.train = train
         self.num_joints = num_joints
         self.input_folder_path = input_folder_path
         self.target_folder_path = target_folder_path
-
+        
         self.inputs = self.load_inputs()
-
         self.targets = self.load_targets()
-
         self.max_seq_len = max([max([df.shape[1] for df in joint_data]) for joint_data in self.inputs.values()])
  
     def load_csvs_from_folder(self, folder_path):
@@ -67,7 +75,7 @@ if __name__=="__main__":
     target_folder_path = '/home/rtlink/robros/dataset/robros_dataset/target_data'
     num_joints = 7 
 
-    train_dataset = Robros(train=True, input_folder_path=input_folder_path, target_folder_path=target_folder_path, num_joints=num_joints)
+    train_dataset = RobrosRNN(train=True, input_folder_path=input_folder_path, target_folder_path=target_folder_path, num_joints=num_joints)
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
     
 

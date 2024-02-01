@@ -1,1 +1,2 @@
-from data.robros import Robros
+from data.robros_rnn import RobrosRNN
+from data.robros_cnn import RobrosCNN
