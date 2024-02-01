@@ -50,7 +50,7 @@ class RobrosCNN(Dataset):
     def __len__(self):
         return len(self.targets[0])
 
-    def max_seq_len(self):
+    def get_max_seq_len(self):
         return self.max_seq_len
  
     def __getitem__(self, idx):

@@ -21,6 +21,9 @@ parser.add_argument('--tag', type=str, required=True)
 parser.add_argument('--num-layers', '--nl', type=int, required=False)
 parser.add_argument('--hidden-size', '--hs', type=int, required=False)
 
+# Arguments for Transformer
+parser.add_argument('--nhead', type=int, required=False)
+parser.add_argument('--num-encoder-layers', '--nel', type=int, required=False)
 
 
 CFG = parser.parse_args()
@@ -46,11 +49,11 @@ torch.cuda.manual_seed_all(SEED)
 cudnn.deterministic = CFG.seed is not None
 cudnn.benchmark = not cudnn.deterministic
 
-# CUDA setup
+### CUDA setup
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# DataLoader Setup
+### DataLoader Setup
 
 model_name = CFG.model
 
@@ -74,9 +77,11 @@ valid_loader = DataLoader(validset, **loader_kwargs)
 len_trainset = len(trainset)
 len_validset = len(validset)
 
-# Logging
+max_seq_len = trainset.get_max_seq_len()
 
-LOG_DIR = Path('./log/RNN')
+### Logging
+
+LOG_DIR = Path('./log/Transformer')
 EXP_DIR = LOG_DIR.joinpath(CFG.tag)
 if EXP_DIR.exists():
     answer = None
@@ -107,13 +112,20 @@ def seed_worker(worker_id):
 g = torch.Generator()
 g.manual_seed(0)
 
+### Model
+
 model_kwargs = dict(
     hidden_size=CFG.hidden_size, 
     num_joints=7, 
-    num_layers=CFG.num_layers
+    num_layers=CFG.num_layers,
+    max_seq_len=max_seq_len,
+    nhead=CFG.nhead,
+    num_encoder_layers=CFG.num_encoder_layers,
     )
 
 model = get_model(CFG.model, **model_kwargs).cuda()
+
+###
 
 optimizer = torch.optim.Adam(model.parameters(), lr=CFG.learning_rate)
 
@@ -173,8 +185,6 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
                 log_softmax_output = F.log_softmax(output, dim=-1)
                 target_dist = F.softmax(target, dim=-1)
 
-
-
                 loss = F.kl_div(log_softmax_output, target_dist, reduction='batchmean')
 
                 valid_loss += loss.item()*input.size(0)
@@ -201,14 +211,4 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
  
         writer.add_scalar('epoch/epoch', epoch, global_step=epoch)
         writer.add_scalar('epoch/learning_rate', lr_list[-1], global_step=epoch)
-
-
-
-
-
-                
-                
-                
-            
-                    
                 

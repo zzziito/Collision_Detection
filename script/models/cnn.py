@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
  
-class RobrosCNN(nn.Module):
+class CNN(nn.Module):
     def __init__(self, num_joints, max_seq_len):
-        super(RobrosCNN, self).__init__()
+        super(CNN, self).__init__()
         self.num_joints = num_joints
         self.max_seq_len = max_seq_len
 
@@ -29,7 +29,7 @@ if __name__=="__main__":
     max_seq_len = 100
     example_input = torch.randn(batch_size, 3, num_joints, max_seq_len)
 
-    model = RobrosCNN(num_joints=num_joints, max_seq_len=max_seq_len)
+    model = CNN(num_joints=num_joints, max_seq_len=max_seq_len)
     
     output = model(example_input)
     print("Output shape:", output.shape)

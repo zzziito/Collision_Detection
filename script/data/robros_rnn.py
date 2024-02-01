@@ -47,6 +47,9 @@ class RobrosRNN(Dataset):
  
     def __len__(self):
         return len(self.targets[0]) 
+    
+    def get_max_seq_len(self):
+        return self.max_seq_len
  
     def __getitem__(self, idx):
         inputs = []

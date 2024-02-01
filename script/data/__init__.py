@@ -7,5 +7,7 @@ def get_dataloader(name: str, **kwargs):
         return RobrosRNN(**kwargs)
     elif name == 'cnn':
         return RobrosCNN(**kwargs)
+    elif name == 'transformer':
+        return RobrosRNN(**kwargs)
     else:
         raise NotImplementedError
