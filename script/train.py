@@ -34,8 +34,8 @@ from torch.nn.functional import kl_div, cross_entropy
 from torch.utils.tensorboard import SummaryWriter
 from torch.backends import cudnn
 
-from data import Robros
 from models import get_model
+from data import get_dataloader
 
 SEED = (torch.initial_seed() if CFG.seed is None else CFG.seed) % 2**32
 random.seed(SEED)
@@ -52,8 +52,16 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # DataLoader Setup
 
-trainset = Robros(train=True)
-validset = Robros(train=False)
+model_name = CFG.model
+
+dataset_kwargs = {
+    'input_folder_path' : "/home/rtlink/robros/dataset/robros_dataset/input_data",
+    'target_folder_path': "/home/rtlink/robros/dataset/robros_dataset/target_data",
+    'num_joints' : 7,
+}
+
+trainset = get_dataloader(name=model_name, train=True, **dataset_kwargs)
+validset = get_dataloader(name=model_name, train=False, **dataset_kwargs)
 
 loader_kwargs = dict(
     batch_size = CFG.batch_size,
@@ -106,6 +114,7 @@ model_kwargs = dict(
     )
 
 model = get_model(CFG.model, **model_kwargs).cuda()
+
 optimizer = torch.optim.Adam(model.parameters(), lr=CFG.learning_rate)
 
 criterion_cls = nn.KLDivLoss(reduction="batchmean")

@@ -13,7 +13,7 @@ target tensor dimension : [batch_size, 1, num_joints, max_seq_len]
 """
  
 class RobrosCNN(Dataset):
-    def __init__(self, train, input_folder_path="/home/rtlink/robros/dataset/robros_dataset/input_data", target_folder_path="/home/rtlink/robros/dataset/robros_dataset/target_data", num_joints=7):
+    def __init__(self, train, input_folder_path=None, target_folder_path=None, num_joints=int):
         self.train = train
         self.num_joints = num_joints
         self.input_folder_path = input_folder_path
@@ -49,6 +49,9 @@ class RobrosCNN(Dataset):
  
     def __len__(self):
         return len(self.targets[0])
+
+    def max_seq_len(self):
+        return self.max_seq_len
  
     def __getitem__(self, idx):
         inputs = []

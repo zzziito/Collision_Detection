@@ -15,12 +15,12 @@ target tensor dimension : [batch_size, num_joints, max_seq_len]
 
 
 class RobrosRNN(Dataset):
-    def __init__(self, train, input_folder_path="/home/rtlink/robros/dataset/robros_dataset/input_data", target_folder_path="/home/rtlink/robros/dataset/robros_dataset/target_data", num_joints=7):
+    def __init__(self, train, input_folder_path=None, target_folder_path=None, num_joints=int):
         self.train = train
         self.num_joints = num_joints
         self.input_folder_path = input_folder_path
         self.target_folder_path = target_folder_path
-        
+
         self.inputs = self.load_inputs()
         self.targets = self.load_targets()
         self.max_seq_len = max([max([df.shape[1] for df in joint_data]) for joint_data in self.inputs.values()])

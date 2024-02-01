@@ -1,38 +1,35 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+ 
+class RobrosCNN(nn.Module):
+    def __init__(self, num_joints, max_seq_len):
+        super(RobrosCNN, self).__init__()
+        self.num_joints = num_joints
+        self.max_seq_len = max_seq_len
 
-class CNN(nn.Module):
-    def __init__(self, input_channels, num_classes, sequence_length):
-        super(CNN, self).__init__()
-
-        self.conv1 = nn.Conv1d(input_channels, 64, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv1d(64, 128, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv1d(128, 256, kernel_size=3, padding=1)
-
-        self.out = nn.Linear(256, num_classes)
-
-        self.sequence_length = sequence_length
-
-        self.sequence_weights = self.create_centered_weights(sequence_length)
-
-    def create_centered_weights(self, length):
-        # 시퀀스 중앙에 더 높은 가중치를 부여하는 배열 생성
-        center = length // 2
-        weights = torch.abs(torch.arange(length) - center)
-        weights = 1 - (weights / max(weights))
-        return weights
-
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=(1, 3), padding=(0, 1))
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=(1, 3), padding=(0, 1))
+        self.conv3 = nn.Conv2d(in_channels=32, out_channels=1, kernel_size=(1, 3), padding=(0, 1))
+ 
+        self.pool = nn.MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+ 
     def forward(self, x):
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-
-        x = x * self.sequence_weights
-
-        x = F.avg_pool1d(x, kernel_size=self.sequence_length)
-
-        # 출력
-        x = x.view(x.size(0), -1)
-        x = self.out(x)
+        x = self.conv3(x)
+ 
         return x
+
+if __name__=="__main__":
+
+    num_joints = 7
+
+    batch_size = 4
+    max_seq_len = 100
+    example_input = torch.randn(batch_size, 3, num_joints, max_seq_len)
+
+    model = RobrosCNN(num_joints=num_joints, max_seq_len=max_seq_len)
+    
+    output = model(example_input)
+    print("Output shape:", output.shape)
