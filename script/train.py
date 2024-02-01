@@ -17,6 +17,11 @@ parser.add_argument('--learning-rate', '-lr',type=float, default=1.0E-4)
 parser.add_argument('--batch-size','-bs', type=int, default=128)
 parser.add_argument('--tag', type=str, required=True)
 
+# Arguments for RNN
+parser.add_argument('--num-layers', '--nl', type=int, required=False)
+parser.add_argument('--hidden-size', '--hs', type=int, required=False)
+
+
 
 CFG = parser.parse_args()
 
@@ -63,7 +68,7 @@ len_validset = len(validset)
 
 # Logging
 
-LOG_DIR = Path('./log')
+LOG_DIR = Path('./log/RNN')
 EXP_DIR = LOG_DIR.joinpath(CFG.tag)
 if EXP_DIR.exists():
     answer = None
@@ -95,9 +100,9 @@ g = torch.Generator()
 g.manual_seed(0)
 
 model_kwargs = dict(
-    hidden_size=128, 
+    hidden_size=CFG.hidden_size, 
     num_joints=7, 
-    num_layers=10
+    num_layers=CFG.num_layers
     )
 
 model = get_model(CFG.model, **model_kwargs).cuda()
@@ -171,12 +176,15 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
 
         lr_list.append(optimizer.param_groups[0]['lr'])
         loss_list.append(train_mean_loss)
+
         
         torch.save({
             'cfg': CFG,
             'last_epoch': epoch,
             'lr_list': lr_list,
             'loss_list': loss_list,
+            'saved_hidden_size': CFG.hidden_size,
+            'saved_num_layers': CFG.num_layers,
             'saved_epoch': CFG.epoch,
             'saved_learning_rate': CFG.learning_rate,
             'saved_batch_size': CFG.batch_size,
