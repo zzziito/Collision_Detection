@@ -27,7 +27,7 @@ class RobrosRNN(Dataset):
  
     def load_csvs_from_folder(self, folder_path):
         all_csvs = sorted(os.listdir(folder_path))
-        data = [pd.read_csv(os.path.join(folder_path, csv_file), header=None) for csv_file in all_csvs]
+        data = [pd.read_csv(os.path.join(folder_path, csv_file), header=None, on_bad_lines='skip') for csv_file in all_csvs]
         return data
  
     def load_inputs(self):
@@ -74,8 +74,8 @@ class RobrosRNN(Dataset):
     
 
 if __name__=="__main__":
-    input_folder_path = '/home/rtlink/robros/dataset/robros_dataset/input_data'
-    target_folder_path = '/home/rtlink/robros/dataset/robros_dataset/target_data'
+    input_folder_path = '/home/rtlink/robros/dataset/robros_dataset_new/input_data'
+    target_folder_path = '/home/rtlink/robros/dataset/robros_dataset_new/target_data'
     num_joints = 7 
 
     train_dataset = RobrosRNN(train=True, input_folder_path=input_folder_path, target_folder_path=target_folder_path, num_joints=num_joints)

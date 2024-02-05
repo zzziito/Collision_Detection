@@ -39,6 +39,7 @@ from torch.backends import cudnn
 
 from models import get_model
 from data import get_dataloader
+# from utils import Dicriminator
 
 SEED = (torch.initial_seed() if CFG.seed is None else CFG.seed) % 2**32
 random.seed(SEED)
@@ -58,8 +59,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model_name = CFG.model
 
 dataset_kwargs = {
-    'input_folder_path' : "/home/rtlink/robros/dataset/robros_dataset/input_data",
-    'target_folder_path': "/home/rtlink/robros/dataset/robros_dataset/target_data",
+    'input_folder_path' : "/home/rtlink/robros/dataset/robros_dataset_new/input_data",
+    'target_folder_path': "/home/rtlink/robros/dataset/robros_dataset_new/target_data",
     'num_joints' : 7,
 }
 
@@ -81,8 +82,10 @@ max_seq_len = trainset.get_max_seq_len()
 
 ### Logging
 
-LOG_DIR = Path('./log/Transformer')
-EXP_DIR = LOG_DIR.joinpath(CFG.tag)
+LOG_DIR = Path('./log/0205')
+MODEL_DIR = LOG_DIR.joinpath(CFG.model) 
+EXP_DIR = MODEL_DIR.joinpath(CFG.tag)
+
 if EXP_DIR.exists():
     answer = None
     while answer not in {'y', 'n'}:
@@ -94,6 +97,7 @@ if EXP_DIR.exists():
         os.system(f'rm -rf "{EXP_DIR}"')
     else:
         exit(0)
+
 EXP_DIR.mkdir(parents=True)
 
 CFG_FILENAME = EXP_DIR.joinpath('config.yaml')
