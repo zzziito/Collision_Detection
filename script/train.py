@@ -39,7 +39,7 @@ from torch.backends import cudnn
 
 from models import get_model
 from data import get_dataloader
-# from utils import Dicriminator
+from utils import Dicriminator
 
 SEED = (torch.initial_seed() if CFG.seed is None else CFG.seed) % 2**32
 random.seed(SEED)
