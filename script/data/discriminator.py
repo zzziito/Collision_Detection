@@ -1,82 +1,67 @@
-import os
-import pandas as pd
-import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader, random_split
-import json 
+from torch.utils.data import Dataset, DataLoader
+import os
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
  
-class Discriminator(Dataset):
-    def __init__(self, input_folder, target_folder, train=True, split_ratio=0.7):
-        self.input_folder = input_folder
-        self.target_folder = target_folder
-        self.data = []
-        self.max_seq_len = 0
-        # Load data
-        for file_name in os.listdir(input_folder):
-            input_path = os.path.join(input_folder, file_name)
-            target_path = os.path.join(target_folder, file_name)
-            # Read data
-            input_data = pd.read_csv(input_path, header=None).values
-            target_data = pd.read_csv(target_path, header=None, converters={1: eval}).values
-            # Update max_seq_len
-            self.max_seq_len = max(self.max_seq_len, input_data.shape[1])
-            # Append data
-            for input_row, target_row in zip(input_data, target_data):
-                self.data.append((input_row, target_row))
-        # Split data into train and test sets
-        train_size = int(len(self.data) * split_ratio)
-        test_size = len(self.data) - train_size
-        train_data, test_data = random_split(self.data, [train_size, test_size])
-        self.data = train_data if train else test_data
+class RobrosDisc(Dataset):
+    def __init__(self, train=True, input_folder_path=None, target_folder_path=None):
+        self.train = train
+        self.input_folder_path = input_folder_path
+        self.target_folder_path = target_folder_path
+ 
+        # Load target data
+        target_path = os.path.join(self.target_folder_path, 'target.csv')
+        self.target_data = pd.read_csv(target_path)
+ 
+        # Load input data
+        self.input_data = []
+        for i in range(1, 8):  # Assuming there are 7 files named fre_joint_1.csv to fre_joint_7.csv
+            file_path = os.path.join(self.input_folder_path, f'fre_joint_{i}.csv')
+            joint_data = pd.read_csv(file_path, header=None)
+            self.input_data.append(joint_data)
+ 
+        # Convert list of DataFrames to a single numpy array for better handling
+        self.input_data = np.stack([df.values for df in self.input_data], axis=1)  # Shape: (num_samples, 7, 4500)
+ 
+        # Split dataset
+        num_samples = self.input_data.shape[0]
+        split_idx = int(num_samples * 0.7)
+        if self.train:
+            self.input_data = self.input_data[:split_idx]
+            self.target_data = self.target_data.iloc[:split_idx]
+        else:
+            self.input_data = self.input_data[split_idx:]
+            self.target_data = self.target_data.iloc[split_idx:]
  
     def __len__(self):
-        return len(self.data)
-    
+        return len(self.target_data)
+ 
     def __getitem__(self, idx):
-        input_seq, target_seq = self.data[idx]
-        
-        # input_seq는 이미 적절한 형태의 numpy 배열이어야 함
-        # Padding input sequence to max_seq_len
-        padded_input = np.pad(input_seq, (0, self.max_seq_len - len(input_seq)), 'constant', constant_values=0)
-        
-        input_tensor = torch.tensor(padded_input, dtype=torch.float)
-        
-        label = target_seq[0]
-        joints = np.array(eval(target_seq[1]))  # 문자열에서 리스트로 변환
-        
-        label_tensor = torch.tensor([label], dtype=torch.float)
-        joints_tensor = torch.tensor(joints, dtype=torch.float)
-        
-        # Combine label and joints into a single target tensor
-        target_tensor = torch.cat((label_tensor, joints_tensor), dim=0)
-        
-        return input_tensor, target_tensor
+        reg_pos_tensor = torch.tensor(self.input_data[idx], dtype=torch.float)
+        collision_tensor = torch.tensor(self.target_data.iloc[idx, 0], dtype=torch.float)
+        joint_positions_tensor = torch.tensor(self.target_data.iloc[idx, 1:].values, dtype=torch.float)
+        return reg_pos_tensor, collision_tensor, joint_positions_tensor
 
-
-
-
-def test_dataloader_dimensions(loader):
-    for input_tensor, target_tensor in loader:
-        print("Input Tensor Shape:", input_tensor.shape)
-        print("Target Tensor Shape:", target_tensor.shape)
-        break  # Only process the first batch
  
 if __name__ == "__main__":
     # Define dataset paths
-    input_folder = '/home/rtlink/robros/dataset/collision/len50/cleaned/discriminator/position'
-    target_folder = '/home/rtlink/robros/dataset/collision/len50/cleaned/discriminator/target'
+    input_folder = '/home/rtlink/robros/dataset/collision/regularized_torque'
+    target_folder = '/home/rtlink/robros/dataset/collision/target'
  
     # Create the datasets
-    dataset_train = Discriminator(input_folder, target_folder, train=True)
-    dataset_test = Discriminator(input_folder, target_folder, train=False)
+    dataset_train = RobrosDisc(train=True, input_folder_path = input_folder, target_folder_path = target_folder)
+    dataset_test = RobrosDisc(train=False, input_folder_path = input_folder, target_folder_path = target_folder)
  
     # Create DataLoaders
     train_loader = DataLoader(dataset_train, batch_size=2, shuffle=True)
     test_loader = DataLoader(dataset_test, batch_size=2, shuffle=False)
  
-    # Test DataLoader dimensions
-    print("Train DataLoader:")
-    test_dataloader_dimensions(train_loader)
- 
-    print("\nTest DataLoader:")
-    test_dataloader_dimensions(test_loader)
+    # 훈련 데이터 로더를 이용한 차원 확인
+    print("Training Data:")
+    for reg_pos_tensor, collision_tensor, joint_positions_tensor in train_loader:
+        print("Regularized Position Tensor Shape:", reg_pos_tensor.shape)
+        print("Collision Tensor Shape:", collision_tensor.shape)
+        print("Joint Positions Tensor Shape:", joint_positions_tensor.shape)
+        break 

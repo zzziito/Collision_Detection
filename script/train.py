@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #Argument Parsing
-parser = ArgumentParser("JTE")
+parser = ArgumentParser("TCD")
 parser.add_argument('--seed', type=int, default=None)
 parser.add_argument('--model', type=str, default='rnn')
 parser.add_argument('--epoch', type=int, default=100)
@@ -39,7 +39,6 @@ from torch.backends import cudnn
 
 from models import get_model
 from data import get_dataloader
-from utils import Dicriminator
 
 SEED = (torch.initial_seed() if CFG.seed is None else CFG.seed) % 2**32
 random.seed(SEED)
@@ -119,7 +118,7 @@ g.manual_seed(0)
 ### Model
 
 model_kwargs = dict(
-    hidden_size=CFG.hidden_size, 
+    hidden_size=CFG.x, 
     num_joints=7, 
     num_layers=CFG.num_layers,
     max_seq_len=max_seq_len,

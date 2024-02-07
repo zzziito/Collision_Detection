@@ -2,6 +2,7 @@
 from models.rnn import RNN
 from models.cnn import CNN
 from models.transformer import Transformer
+from models.discriminator import Discriminator
 
 def get_model(name: str, **kwargs):
     name = name.lower()

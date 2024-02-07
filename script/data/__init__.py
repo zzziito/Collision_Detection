@@ -1,5 +1,6 @@
 from data.robros_rnn import RobrosRNN
 from data.robros_cnn import RobrosCNN
+from data.discriminator import RobrosDisc
 
 def get_dataloader(name: str, **kwargs):
     name = name.lower()
