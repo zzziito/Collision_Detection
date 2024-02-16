@@ -5,10 +5,10 @@ import math
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
  
 class Transformer(nn.Module):
-    def __init__(self, num_joints, max_seq_len, hidden_size=512, nhead=8, num_encoder_layers=6, dropout=0.1):
+    def __init__(self, num_joints, hidden_size=512, nhead=8, num_encoder_layers=6, dropout=0.1):
         super(Transformer, self).__init__()
         self.num_joints = num_joints
-        self.max_seq_len = max_seq_len
+        # self.max_seq_len = max_seq_len
         self.hidden_size = hidden_size
 
         # Positional Encoding
@@ -56,7 +56,7 @@ if __name__=="__main__":
     num_encoder_layers = 6
     dropout = 0.1
     
-    model = Transformer(num_joints=num_joints, max_seq_len=max_seq_len,
+    model = Transformer(num_joints=num_joints,
                                     hidden_size=hidden_size, nhead=nhead,
                                     num_encoder_layers=num_encoder_layers, dropout=dropout)
 
@@ -64,7 +64,7 @@ if __name__=="__main__":
         model.cuda()
 
     batch_size = 4
-    example_input = torch.randn(batch_size, 3 * num_joints, max_seq_len)
+    example_input = torch.randn(batch_size, 3 * num_joints, 100)
     
     if torch.cuda.is_available():
         example_input = example_input.cuda()

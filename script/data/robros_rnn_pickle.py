@@ -3,6 +3,7 @@ from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import numpy as np
 import os
+import pickle
  
 
 """
@@ -20,6 +21,28 @@ class RobrosRNN(Dataset):
         self.num_joints = num_joints
         self.input_folder_path = input_folder_path
         self.target_folder_path = target_folder_path
+
+        self.pickle_file_path = "/home/rtlink/robros/dataset/robros_dataset/pickle"
+
+        # Determine filenames for pickle files
+        inputs_pickle = os.path.join(self.pickle_file_path, "inputs.pkl")
+        targets_pickle = os.path.join(self.pickle_file_path, "targets.pkl")
+ 
+        # Attempt to load pre-processed data from pickle files
+        if os.path.exists(inputs_pickle) and os.path.exists(targets_pickle):
+            print("Loading data from pickle files...")
+            with open(inputs_pickle, 'rb') as f:
+                self.inputs = pickle.load(f)
+            with open(targets_pickle, 'rb') as f:
+                self.targets = pickle.load(f)
+        else:
+            print("Processing and saving data to pickle files...")
+            self.inputs = self.load_inputs()
+            self.targets = self.load_targets()
+            with open(inputs_pickle, 'wb') as f:
+                pickle.dump(self.inputs, f, protocol=pickle.HIGHEST_PROTOCOL)
+            with open(targets_pickle, 'wb') as f:
+                pickle.dump(self.targets, f, protocol=pickle.HIGHEST_PROTOCOL)
 
         self.inputs = self.load_inputs()
         self.targets = self.load_targets()

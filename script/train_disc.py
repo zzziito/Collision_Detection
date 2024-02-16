@@ -158,33 +158,37 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
     for epoch in epoch_bar:
         # Train Code
         with tqdm(train_loader, desc='TRAIN', position=2, leave=False, dynamic_ncols=True) as train_bar:
-            train_loss, train_total, train_mean_loss = 0, 0, 0
+            train_loss, train_total, train_accuracy = 0, 0, 0
             
-            for batch_idx, (input, target) in enumerate(train_bar):
+            for batch_idx, (input, target, collision) in enumerate(train_bar):
                 
-                input, target = input.to(device), target.to(device)
+                input, target, collision = input.to(device), target.to(device), collision.to(device)
+
+                with torch.no_grad():
+                    estimated_torque = model(input)
+                    tau_ext = estimated_torque - target
 
                 optimizer.zero_grad()
 
-                output = model(input)
+                estimated_collision = collision_discriminator(tau_ext)
 
-                log_softmax_output = F.log_softmax(output, dim=-1)
-                target_dist = F.softmax(target, dim=-1)
-
-                output_shape = log_softmax_output.shape
-                target_shape = target_dist.shape
-
-                loss = F.kl_div(log_softmax_output, target_dist, reduction='batchmean')
+                loss = F.binary_cross_entropy_with_logits(estimated_collision, collision)
 
                 loss.backward()
                 optimizer.step()
+
+                predicted = torch.round(torch.sigmoid(estimated_collision))
+                correct = (predicted == collision).float().sum()
+                accuracy = correct / collision.numel()
+
+
                 
                 with torch.no_grad():
                     train_loss += loss.item()*input.size(0)
-                    train_total += input.size(0)
+                    train_accuracy += accuracy.item()
+                    train_total += 1
                     
             train_mean_loss = train_loss / train_total
-            
             writer.add_scalar('train/loss', train_mean_loss, global_step=epoch)
             
         # Validation Code

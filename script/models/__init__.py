@@ -11,6 +11,6 @@ def get_model(name: str, **kwargs):
     elif name == 'cnn':
         return CNN(num_joints=kwargs['num_joints'], max_seq_len=kwargs['max_seq_len'])
     elif name == 'transformer':
-        return Transformer(num_joints=kwargs['num_joints'], max_seq_len=kwargs['max_seq_len'], hidden_size=kwargs['hidden_size'], nhead=kwargs['nhead'], num_encoder_layers=kwargs['num_encoder_layers'])
+        return Transformer(num_joints=kwargs['num_joints'], hidden_size=kwargs['hidden_size'], nhead=kwargs['nhead'], num_encoder_layers=kwargs['num_encoder_layers'])
     else:
         raise NotImplementedError
