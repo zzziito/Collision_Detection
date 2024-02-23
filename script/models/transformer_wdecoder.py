@@ -2,32 +2,35 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from torch.nn import TransformerEncoder, TransformerEncoderLayer
+from torch.nn import TransformerEncoder, TransformerEncoderLayer, TransformerDecoder, TransformerDecoderLayer
  
-class Transformer(nn.Module):
-    def __init__(self, num_joints, hidden_size=512, nhead=8, num_encoder_layers=6, dropout=0.1):
-        super(Transformer, self).__init__()
+class Dtransformer(nn.Module):
+    def __init__(self, num_joints, hidden_size=512, nhead=8, num_encoder_layers=6, num_decoder_layers=6, dropout=0.1):
+        super(Dtransformer, self).__init__()
         self.num_joints = num_joints
-        # self.max_seq_len = max_seq_len
         self.hidden_size = hidden_size
-
+ 
         # Positional Encoding
         self.positional_encoding = PositionalEncoding(hidden_size, dropout)
         # Transformer Encoder Layer
         encoder_layer = TransformerEncoderLayer(d_model=hidden_size, nhead=nhead, dropout=dropout)
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
-
+        # Transformer Decoder Layer
+        decoder_layer = TransformerDecoderLayer(d_model=hidden_size, nhead=nhead, dropout=dropout)
+        self.transformer_decoder = TransformerDecoder(decoder_layer, num_layers=num_decoder_layers)
+ 
         self.input_linear = nn.Linear(3 * num_joints, hidden_size)
         self.output_linear = nn.Linear(hidden_size, num_joints)
-
+ 
     def forward(self, src):
-        # 입력 차원 조정: [batch_size, 3 * num_joints, max_seq_len] -> [max_seq_len, batch_size, hidden_size]
-        src = src.permute(2, 0, 1)  # [max_seq_len, batch_size, 3 * num_joints]
-        src = self.input_linear(src)  # [max_seq_len, batch_size, hidden_size]
+        src = src.permute(2, 0, 1)
+        src = self.input_linear(src)
         src = self.positional_encoding(src)
-        output = self.transformer_encoder(src)
+        memory = self.transformer_encoder(src)
+        # For simplicity, using encoder outputs as decoder input (normally, you would use target sequences here)
+        tgt = memory
+        output = self.transformer_decoder(tgt, memory)
         output = self.output_linear(output)
-        # 출력 차원 조정: [max_seq_len, batch_size, num_joints] -> [batch_size, num_joints, max_seq_len]
         output = output.permute(1, 2, 0)
         return output
  
@@ -46,7 +49,7 @@ class PositionalEncoding(nn.Module):
     def forward(self, x):
         x = x + self.pe[:x.size(0)]
         return self.dropout(x)
-    
+ 
 if __name__=="__main__":
 
     num_joints = 7
@@ -54,11 +57,12 @@ if __name__=="__main__":
     hidden_size = 512
     nhead = 8
     num_encoder_layers = 6
+    num_decoder_layers = 6
     dropout = 0.1
     
-    model = Transformer(num_joints=num_joints,
+    model = Dtransformer(num_joints=num_joints,
                                     hidden_size=hidden_size, nhead=nhead,
-                                    num_encoder_layers=num_encoder_layers, dropout=dropout)
+                                    num_encoder_layers=num_encoder_layers, num_decoder_layers=num_decoder_layers, dropout=dropout)
 
     if torch.cuda.is_available():
         model.cuda()

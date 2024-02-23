@@ -4,9 +4,9 @@ import torch.nn.functional as F
 import math
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
  
-class Transformer(nn.Module):
+class Transformer_2(nn.Module):
     def __init__(self, num_joints, seq_len, hidden_size=512, nhead=8, num_encoder_layers=6, dropout=0.1):
-        super(Transformer, self).__init__()
+        super(Transformer_2, self).__init__()
         self.num_joints = num_joints
         self.seq_len = seq_len
         self.hidden_size = hidden_size
@@ -63,7 +63,7 @@ if __name__=="__main__":
     num_encoder_layers = 6
     dropout = 0.1
     
-    model = Transformer(num_joints=num_joints, seq_len=seq_len, 
+    model = Transformer_2(num_joints=num_joints, seq_len=seq_len, 
                                     hidden_size=hidden_size, nhead=nhead,
                                     num_encoder_layers=num_encoder_layers, dropout=dropout)
 

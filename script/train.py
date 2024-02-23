@@ -59,12 +59,12 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model_name = CFG.model
 
 dataset_kwargs = {
-    'input_folder' : '/home/rtlink/robros/dataset/0215/0215_free/input_data', 
-    'target_folder': '/home/rtlink/robros/dataset/0215/0215_free/target_data', 
+    'input_folder' : '/home/rtlink/robros/dataset/0215_norm/0215_free/input_data', 
+    'target_folder': '/home/rtlink/robros/dataset/0215_norm/0215_free/target_data', 
     # 'collision_folder' : '/home/rtlink/robros/dataset/0215_dataset/collision',
     'num_joints' : 7,
-    'seq_len': 100, 
-    'offset' : 100
+    'seq_len': 3000, 
+    'offset' : 3000
 }
 
 trainset = get_dataloader(name=model_name, train=True, **dataset_kwargs)
@@ -84,7 +84,7 @@ len_validset = len(validset)
 
 ### Logging
 
-LOG_DIR = Path('./log/0215')
+LOG_DIR = Path('./log/0223')
 MODEL_DIR = LOG_DIR.joinpath(CFG.model) 
 EXP_DIR = MODEL_DIR.joinpath(CFG.tag)
 
@@ -175,6 +175,7 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
                 target_shape = target_dist.shape
 
                 loss = F.kl_div(log_softmax_output, target_dist, reduction='batchmean')
+                # print(loss)
 
                 loss.backward()
                 optimizer.step()
@@ -184,7 +185,6 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
                     train_total += input.size(0)
                     
             train_mean_loss = train_loss / train_total
-            
             writer.add_scalar('train/loss', train_mean_loss, global_step=epoch)
             
         # Validation Code

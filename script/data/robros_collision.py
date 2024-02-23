@@ -8,7 +8,8 @@ import pickle
 
 """
 Dataloader for RNN based models
-Adjusting Seq_len
+- collision
+- Seq_len
 
 input tensor dimension : [batch_size, 3 * num_joints, seq_len]
 target tensor dimension : [batch_size, num_joints, seq_len]
@@ -16,7 +17,7 @@ collision tensor dimension : [batch_size, num_joints, seq_len]
 
 """
 
-class RobrosRNN(Dataset):
+class RobrosRNN_Collision(Dataset):
     def __init__(self, train, input_folder, target_folder, collision_folder, num_joints, seq_len, offset):
         self.train = train
         self.input_folder = input_folder
@@ -28,6 +29,9 @@ class RobrosRNN(Dataset):
         self.index = 0
         self.data = self.load_data()
 
+        self.input_zero_tensor = torch.zeros((self.num_joints*3, self.seq_len), dtype=torch.float32)
+        self.output_zero_tensor = torch.zeros((self.num_joints, self.seq_len), dtype=torch.float32)
+        self.collision_zero_tensor = torch.zeros((self.num_joints, self.seq_len), dtype=torch.float32)
 
     def load_data(self):
         # Load data from CSV files
@@ -71,12 +75,8 @@ class RobrosRNN(Dataset):
         targets, collisions = [], []
     
         for joint_idx, joint_data in enumerate(self.data):
-
             if idx+2*self.seq_len > len(self.data[0]['position']):
-                inputs = torch.zeros((self.num_joints*3, self.seq_len), dtype=torch.float32)
-                targets = torch.zeros((self.num_joints, self.seq_len), dtype=torch.float32)
-                collisions = torch.zeros((self.num_joints, self.seq_len), dtype=torch.float32)
-                return inputs, targets, collisions
+                return self.input_zero_tensor, self.output_zero_tensor, self.collision_zero_tensor
 
             position = joint_data['position'][idx:idx+self.seq_len]
             velocity = joint_data['velocity'][idx:idx+self.seq_len]
@@ -113,7 +113,7 @@ if __name__=="__main__":
     seq_len = 100
     offset = 100
 
-    train_dataset = RobrosRNN(train=True, input_folder=input_folder_path, target_folder=target_folder_path, collision_folder=collision_folder_path, num_joints=num_joints, seq_len=seq_len, offset=offset)
+    train_dataset = RobrosRNN_Collision(train=True, input_folder=input_folder_path, target_folder=target_folder_path, collision_folder=collision_folder_path, num_joints=num_joints, seq_len=seq_len, offset=offset)
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
     
     for inputs, targets, collision in train_loader:

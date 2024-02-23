@@ -26,6 +26,8 @@ parser.add_argument('--hidden-size', '--hs', type=int, required=False)
 parser.add_argument('--nhead', type=int, required=False)
 parser.add_argument('--num-encoder-layers', '--nel', type=int, required=False)
 
+# Arguments for Discriminator
+
 
 CFG = parser.parse_args()
 
@@ -39,7 +41,11 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.backends import cudnn
 
 from models import get_model
+from models.discriminator_tf import Discriminator
+# from models.discriminator_rn import Discriminator
+# from models.discriminator_fc import Discriminator
 from data import get_dataloader
+
 
 SEED = (torch.initial_seed() if CFG.seed is None else CFG.seed) % 2**32
 random.seed(SEED)
@@ -59,12 +65,12 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model_name = CFG.model
 
 dataset_kwargs = {
-    'input_folder' : '/home/rtlink/robros/dataset/0215/0215_free/input_data', 
-    'target_folder': '/home/rtlink/robros/dataset/0215/0215_free/target_data', 
-    # 'collision_folder' : '/home/rtlink/robros/dataset/0215_dataset/collision',
+    'input_folder' : '/home/rtlink/robros/dataset/0215_norm/0215_collision/input_data', 
+    'target_folder': '/home/rtlink/robros/dataset/0215_norm/0215_collision/target_data', 
+    'collision_folder' : '/home/rtlink/robros/dataset/0215_norm/0215_collision/collision',
     'num_joints' : 7,
-    'seq_len': 100, 
-    'offset' : 100
+    'seq_len': 3000, 
+    'offset' : 3000
 }
 
 trainset = get_dataloader(name=model_name, train=True, **dataset_kwargs)
@@ -84,7 +90,7 @@ len_validset = len(validset)
 
 ### Logging
 
-LOG_DIR = Path('./log/0215')
+LOG_DIR = Path('./log/0221/discriminator')
 MODEL_DIR = LOG_DIR.joinpath(CFG.model) 
 EXP_DIR = MODEL_DIR.joinpath(CFG.tag)
 
@@ -118,17 +124,22 @@ def seed_worker(worker_id):
 g = torch.Generator()
 g.manual_seed(0)
 
-### Model
+### Torque Estimator
 
-model_kwargs = dict(
-    hidden_size=CFG.hidden_size, 
-    num_joints=7, 
-    num_layers=CFG.num_layers,
-    nhead=CFG.nhead,
-    num_encoder_layers=CFG.num_encoder_layers,
-    )
+# ckpt_path = '/home/rtlink/robros/log/0219/rnn/bs256_hs50_nl10_lr6/ckpt.pt'
+# checkpoint = torch.load(ckpt_path)
+# model_CFG = checkpoint['cfg']
 
-model = get_model(CFG.model, **model_kwargs).cuda()
+# model_kwargs = dict(
+#     hidden_size=CFG.hidden_size, 
+#     num_joints=7, 
+#     num_layers=CFG.num_layers,
+#     nhead=CFG.nhead,
+#     num_encoder_layers=CFG.num_encoder_layers,
+#     )
+
+# model = get_model(CFG.model, **model_kwargs).cuda()
+# model.eval()
 
 def clone_state_dict(thing: Union[nn.Module, Dict[str, torch.Tensor]]):
     if isinstance(thing, nn.Module):
@@ -140,9 +151,15 @@ def clone_state_dict(thing: Union[nn.Module, Dict[str, torch.Tensor]]):
     
     return {key: val.clone().detach().cpu() for key, val in state_dict.items()}
 
+### Collision Discriminator
+
+# collision_discriminator = Discriminator(input_size=3000, hidden_size1=64, hidden_size2=32, output_size=3000).cuda()
+collision_discriminator = Discriminator(input_size=3000, hidden_size=512, nhead=8, num_encoder_layers=6).cuda()
+# collision_discriminator = Discriminator(input_size=3000, hidden_size=100, num_layers=32).cuda()
+
 ###
 
-optimizer = torch.optim.Adam(model.parameters(), lr=CFG.learning_rate)
+optimizer = torch.optim.Adam(collision_discriminator.parameters(), lr=CFG.learning_rate)
 
 criterion_cls = nn.KLDivLoss(reduction="batchmean")
 criterion_dex = nn.MSELoss()
@@ -153,20 +170,21 @@ num_train_batch = len(train_loader) - 1
 num_valid_batch = len(valid_loader) - 1
 
 with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynamic_ncols=True) as epoch_bar:
-    lr_list, loss_list = [], []
+    lr_list, loss_list, acc_list = [], [], []
 
     for epoch in epoch_bar:
         # Train Code
         with tqdm(train_loader, desc='TRAIN', position=2, leave=False, dynamic_ncols=True) as train_bar:
             train_loss, train_total, train_accuracy = 0, 0, 0
+            train_mean_loss, train_mean_acc = 0,0,
             
-            for batch_idx, (input, target, collision) in enumerate(train_bar):
+            for batch_idx, (_, target, collision) in enumerate(train_bar):
                 
-                input, target, collision = input.to(device), target.to(device), collision.to(device)
+                _, target, collision = _, target.to(device), collision.to(device)
 
                 with torch.no_grad():
-                    estimated_torque = model(input)
-                    tau_ext = estimated_torque - target
+                    # estimated_torque = model(target)
+                    tau_ext = target
 
                 optimizer.zero_grad()
 
@@ -180,14 +198,13 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
                 predicted = torch.round(torch.sigmoid(estimated_collision))
                 correct = (predicted == collision).float().sum()
                 accuracy = correct / collision.numel()
-
-
                 
                 with torch.no_grad():
-                    train_loss += loss.item()*input.size(0)
-                    train_accuracy += accuracy.item()
-                    train_total += 1
+                    train_loss += loss.item()*target.size(0)
+                    train_accuracy += accuracy.item()*target.size(0)
+                    train_total += target.size(0)
                     
+            train_mean_acc = train_accuracy / train_total
             train_mean_loss = train_loss / train_total
             writer.add_scalar('train/loss', train_mean_loss, global_step=epoch)
             
@@ -195,25 +212,28 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
         with tqdm(valid_loader, desc='VALID', position=2, leave=False, dynamic_ncols=True) as valid_bar, torch.no_grad():
             valid_loss, valid_total, valid_mean_loss = 0, 0, 0
 
-            for batch_idx, (input, target) in enumerate(valid_bar):
+            for batch_idx, (input, target, collision) in enumerate(valid_bar):
 
-                input, target = input.to(device), target.to(device)
+                _, target, collision = _, target.to(device), collision.to(device)
 
-                outputs = model(input)
+                # estimated_torque = model(input)
+                tau_ext = target
+                estimated_collision = collision_discriminator(tau_ext)
+                loss = F.binary_cross_entropy_with_logits(estimated_collision, collision)
 
-                log_softmax_output = F.log_softmax(output, dim=-1)
-                target_dist = F.softmax(target, dim=-1)
+                valid_loss += loss.item()*target.size(0)
+                valid_total += target.size(0)
 
-                loss = F.kl_div(log_softmax_output, target_dist, reduction='batchmean')
-
-                valid_loss += loss.item()*input.size(0)
-                valid_total += input.size(0)
+                predicted = torch.round(torch.sigmoid(estimated_collision))
+                correct = (predicted == collision).float().sum()
+                accuracy = correct / collision.numel()
 
             valid_mean_loss = valid_loss / valid_total
             writer.add_scalar('valid/loss', valid_mean_loss, global_step=epoch)
 
         lr_list.append(optimizer.param_groups[0]['lr'])
         loss_list.append(train_mean_loss)
+        acc_list.append(train_mean_acc)
 
         
         torch.save({
@@ -221,12 +241,13 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
             'last_epoch': epoch,
             'lr_list': lr_list,
             'loss_list': loss_list,
-            'last_state_dict': clone_state_dict(model),
+            'last_state_dict': clone_state_dict(collision_discriminator),
             'saved_hidden_size': CFG.hidden_size,
             'saved_num_layers': CFG.num_layers,
             'saved_epoch': CFG.epoch,
             'saved_learning_rate': CFG.learning_rate,
             'saved_batch_size': CFG.batch_size,
+            'accuracy': acc_list, 
         }, CKPT_FILENAME)
  
         writer.add_scalar('epoch/epoch', epoch, global_step=epoch)

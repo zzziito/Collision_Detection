@@ -13,8 +13,8 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 
-from models import Discriminator
-from data import RobrosDisc
+from models.discriminator import Discriminator
+from data.discriminator import RobrosDisc
 
 #Argument Parsing
 parser = ArgumentParser("Disc")

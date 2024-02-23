@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 import pickle
+import time
  
 
 """
@@ -25,7 +26,27 @@ class RobrosRNN(Dataset):
         self.seq_len = seq_len
         self.offset = offset
         self.index = 0
-        self.data = self.load_data()
+        self.pickle_path = os.path.join(self.input_folder, f"{'train' if train else 'test'}_data.pkl")
+
+        self.input_zero_tensor = torch.zeros((self.num_joints*3, self.seq_len), dtype=torch.float32)
+        self.output_zero_tensor = torch.zeros((self.num_joints, self.seq_len), dtype=torch.float32)
+        
+        if os.path.exists(self.pickle_path):
+            print("Loading data from pickle.")
+            self.data = self.load_data_pickle()
+        else:
+            print("Loading data from CSV and creating pickle.")
+            self.data = self.load_data()
+            self.save_data_pickle()
+
+    def load_data_pickle(self):
+        with open(self.pickle_path, 'rb') as file:
+            data = pickle.load(file)
+        return data
+
+    def save_data_pickle(self):
+        with open(self.pickle_path, 'wb') as file:
+            pickle.dump(self.data, file, protocol=pickle.HIGHEST_PROTOCOL)
 
 
     def load_data(self):
@@ -64,6 +85,7 @@ class RobrosRNN(Dataset):
  
 
     def __getitem__(self, idx):
+        # start_time = time.time()
         idx = self.index + self.offset
         inputs = torch.zeros((self.num_joints, 3, self.seq_len), dtype=torch.float32)
         targets = []
@@ -71,9 +93,7 @@ class RobrosRNN(Dataset):
         for joint_idx, joint_data in enumerate(self.data):
 
             if idx+2*self.seq_len > len(self.data[0]['position']):
-                inputs = torch.zeros((self.num_joints*3, self.seq_len), dtype=torch.float32)
-                targets = torch.zeros((self.num_joints, self.seq_len), dtype=torch.float32)
-                return inputs, targets
+                return self.input_zero_tensor, self.output_zero_tensor
 
             position = joint_data['position'][idx:idx+self.seq_len]
             velocity = joint_data['velocity'][idx:idx+self.seq_len]
@@ -93,14 +113,54 @@ class RobrosRNN(Dataset):
 
         inputs = inputs.squeeze()
         targets = targets.squeeze()
-    
+        # end_time = time.time()  
+        # print(f"Execution time: {end_time - start_time} seconds")
+
         return inputs, targets
+
+    # def __getitem__(self, idx):
+    #     start_time = time.time()  # 시작 시간 기록
+
+    #     idx = self.index + self.offset
+    #     inputs = torch.zeros((self.num_joints, 3, self.seq_len), dtype=torch.float32)
+    #     targets = []
+        
+    #     for joint_idx, joint_data in enumerate(self.data):
+    #         if idx+2*self.seq_len > len(joint_data['position']):
+    #             inputs = torch.zeros((self.num_joints*3, self.seq_len), dtype=torch.float32)
+    #             targets = torch.zeros((self.num_joints, self.seq_len), dtype=torch.float32)
+    #             end_time = time.time()  # 종료 시간 기록
+    #             print(f"Execution time: {end_time - start_time} seconds")
+    #             return inputs, targets
+
+    #         position = joint_data['position'][idx:idx+self.seq_len]
+    #         velocity = joint_data['velocity'][idx:idx+self.seq_len]
+    #         acceleration = joint_data['acceleration'][idx:idx+self.seq_len]
+    #         target = joint_data['target'][idx+self.seq_len:idx+2*self.seq_len]
+        
+    #         inputs[joint_idx, 0, :] = torch.tensor(position, dtype=torch.float32)
+    #         inputs[joint_idx, 1, :] = torch.tensor(velocity, dtype=torch.float32)
+    #         inputs[joint_idx, 2, :] = torch.tensor(acceleration, dtype=torch.float32)
+    #         targets.append(target)
+        
+    #     self.index += self.seq_len + self.offset
+        
+    #     inputs = inputs.view(-1, 3*self.num_joints, self.seq_len)
+    #     targets = torch.tensor(targets, dtype=torch.float32).view(-1, self.num_joints, self.seq_len)
+
+    #     inputs = inputs.squeeze()
+    #     targets = targets.squeeze()
+
+    #     end_time = time.time()  # 종료 시간 기록
+    #     print(f"Execution time: {end_time - start_time} seconds")
+    #     return inputs, targets
+
 
     
 
 if __name__=="__main__":
-    input_folder_path = '/home/rtlink/robros/dataset/0215/0215_free/input_data'
-    target_folder_path = '/home/rtlink/robros/dataset/0215/0215_free/target_data'
+    input_folder_path = '/home/rtlink/robros/dataset/0216_norm/0216_free/input_data'
+    target_folder_path = '/home/rtlink/robros/dataset/0216_norm/0216_free/target_data'
     num_joints = 7 
     seq_len = 100
     offset = 100
