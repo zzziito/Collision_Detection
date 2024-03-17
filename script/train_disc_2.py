@@ -40,12 +40,12 @@ from torch.nn.functional import kl_div, cross_entropy
 from torch.utils.tensorboard import SummaryWriter
 from torch.backends import cudnn
 
-from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, auc
 
 
 from models import get_model
-from models.discriminator_tf import Discriminator
-# from models.discriminator_rn import Discriminator
+# from models.discriminator_tf import Discriminator
+from models.discriminator_rn import Discriminator
 # from models.discriminator_fc import Discriminator
 from data import get_dataloader
 
@@ -157,8 +157,8 @@ def clone_state_dict(thing: Union[nn.Module, Dict[str, torch.Tensor]]):
 ### Collision Discriminator
 
 # collision_discriminator = Discriminator(input_size=3000, hidden_size1=64, hidden_size2=32, output_size=3000).cuda()
-collision_discriminator = Discriminator(input_size=3000, hidden_size=512, nhead=8, num_encoder_layers=6).cuda()
-# collision_discriminator = Discriminator(input_size=3000, hidden_size=100, num_layers=32).cuda()
+# collision_discriminator = Discriminator(input_size=3000, hidden_size=512, nhead=8, num_encoder_layers=6).cuda()
+collision_discriminator = Discriminator(input_size=3000, hidden_size=100, num_layers=32).cuda()
 
 ###
 
@@ -174,16 +174,18 @@ num_valid_batch = len(valid_loader) - 1
 
 with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynamic_ncols=True) as epoch_bar:
     lr_list, loss_list, acc_list = [], [], []
-    valid_acc, valid_precision, valid_recall, valid_f1 = [],[],[],[]
+    accuracy_list, precision_list, recall_list, f1_list = [],[],[],[]
  
     for epoch in epoch_bar:
         # Train Code
         with tqdm(train_loader, desc='TRAIN', position=2, leave=False, dynamic_ncols=True) as train_bar:
-            train_loss, train_total, train_accuracy = 0, 0, 0
+            train_loss, train_total, train_accuracy, train_precision, train_recall, train_f1 = 0, 0, 0, 0, 0, 0
             train_mean_loss, train_mean_acc = 0,0,
             total_correct, total_predicted_positive, total_actual_positive, total_true_positive = 0,0,0,0
+            TP, FP, FN, TF = 0,0,0,0
 
             
+
             for batch_idx, (_, target, collision) in enumerate(train_bar):
                 
                 _, target, collision = _, target.to(device), collision.to(device)
@@ -202,22 +204,48 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
                 optimizer.step()
  
                 predicted = torch.round(torch.sigmoid(estimated_collision))
-                correct = (predicted == collision).float().sum()
+                target = collision
                 
+                TP = (predicted * target).sum().item()
+                FP = ((predicted == 1) & (target == 0)).sum().item()
+                FN = ((predicted == 0) & (target == 1)).sum().item()
+                
+
+
+                precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+                recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+                f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+                correct = (predicted == collision).float().sum()
                 accuracy = correct / collision.numel()
                 
                 with torch.no_grad():
                     train_loss += loss.item()*target.size(0)
                     train_accuracy += accuracy.item()*target.size(0)
+                    train_precision += precision* target.size(0)  
+                    train_recall += recall* target.size(0)  
+                    train_f1 += f1* target.size(0)  
                     train_total += target.size(0)
                     
             train_mean_acc = train_accuracy / train_total
+            train_mean_pre = train_precision / train_total
+            train_mean_recall = train_recall / train_total
+            train_mean_f1 = train_f1 / train_total
+            
             train_mean_loss = train_loss / train_total
             writer.add_scalar('train/loss', train_mean_loss, global_step=epoch)
+
+        acc_list.append(train_mean_acc)
+        accuracy_list.append(train_mean_acc)
+        precision_list.append(train_mean_pre)
+        recall_list.append(train_mean_recall)
+        f1_list.append(train_mean_f1)
             
         # Validation Code
         with tqdm(valid_loader, desc='VALID', position=2, leave=False, dynamic_ncols=True) as valid_bar, torch.no_grad():
             valid_loss, valid_total, valid_mean_loss = 0, 0, 0
+            predicted_probs = []
+            true_labels = []
  
             for batch_idx, (input, target, collision) in enumerate(valid_bar):
  
@@ -227,7 +255,8 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
                 tau_ext = target
                 estimated_collision = collision_discriminator(tau_ext)
                 loss = F.binary_cross_entropy_with_logits(estimated_collision, collision)
- 
+                probs = torch.sigmoid(estimated_collision)
+
                 valid_loss += loss.item()*target.size(0)
                 valid_total += target.size(0)
  
@@ -237,6 +266,11 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
                 total_predicted_positive += predicted.sum()
                 total_actual_positive += collision.sum()
                 total_true_positive += (predicted * collision).sum()   
+                
+                if (batch_idx is len_validset-1):
+                    predicted_probs.extend(probs.detach().cpu().numpy())
+                    true_labels.extend(collision.detach().cpu().numpy())
+                                    
                 
             accuracy = total_correct / valid_total    
                     
@@ -249,22 +283,18 @@ with tqdm(range(1, CFG.epoch + 1), desc='EPOCH', position=1, leave=False, dynami
  
         lr_list.append(optimizer.param_groups[0]['lr'])
         loss_list.append(train_mean_loss)
-        acc_list.append(train_mean_acc)
-        valid_acc.append(accuracy)
-        valid_precision.append(precision)
-        valid_recall.append(recall)
-        valid_f1.append(f1)
- 
         
         torch.save({
             'cfg': CFG,
             'last_epoch': epoch,
             'lr_list': lr_list,
             'loss_list': loss_list,
-            'valid_acc': valid_acc, 
-            'valid_precision': valid_precision, 
-            'valid_recall': valid_recall, 
-            'valid_f1': valid_f1, 
+            'accuracy': accuracy_list, 
+            'precision': precision_list, 
+            'recall': recall_list, 
+            'f1': f1_list, 
+            'predicted_probs': predicted_probs,
+            'true_labels': true_labels,
             'last_state_dict': clone_state_dict(collision_discriminator),
             'saved_hidden_size': CFG.hidden_size,
             'saved_num_layers': CFG.num_layers,

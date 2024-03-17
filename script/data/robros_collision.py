@@ -106,9 +106,9 @@ class RobrosRNN_Collision(Dataset):
     
 
 if __name__=="__main__":
-    input_folder_path = '/home/rtlink/robros/dataset/0215_dataset/input_data'
-    target_folder_path = '/home/rtlink/robros/dataset/0215_dataset/target_data'
-    collision_folder_path = '/home/rtlink/robros/dataset/0215_dataset/collision'
+    input_folder_path = '/home/rtlink/robros/dataset/0215_norm/0215_collision/input_data'
+    target_folder_path = '/home/rtlink/robros/dataset/0215_norm/0215_collision/target_data'
+    collision_folder_path = '/home/rtlink/robros/dataset/0215_norm/0215_collision/collision'
     num_joints = 7 
     seq_len = 100
     offset = 100

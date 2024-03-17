@@ -1,1 +1,4 @@
-# Joint_Torque_Estimation
+# Collision Using Transformer Architecture : A Model-Free Approach for Redundant Manipulators
+
+
+
